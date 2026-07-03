@@ -1,0 +1,24 @@
+# Zależności i pakiety
+node_modules/
+**/node_modules/
+.venv/
+vendor/
+
+# Pliki budowania i artefakty
+dist/
+build/
+.next/
+out/
+coverage/
+
+# Pliki blokad i metadane (często ogromne tekstowo)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Duże pliki danych i binarne
+*.csv
+*.xlsx
+*.sqlite
+*.map
+*.min.js
