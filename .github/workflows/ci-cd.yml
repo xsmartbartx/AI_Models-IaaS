@@ -1,0 +1,114 @@
+name: AI-IaaS Production Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+# Optimize costs: Automatically cancel older builds if a new commit is pushed to the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write # Required for secure OIDC cloud authentication (AWS/GCP/Azure)
+
+jobs:
+  # --------------------------------------------------------
+  # Job 1: Code Quality & Security (Fails fast to save execution minutes)
+  # --------------------------------------------------------
+  lint-and-scan:
+    name: Lint & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Scan for Exposed Secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Check Python code quality (FastAPI, model serving scripts, etc.)
+      - name: Lint Python Code (Ruff)
+        run: |
+          pip install ruff
+          ruff check .
+          ruff format --check .
+
+      # Check Infrastructure as Code (If using Terraform/OpenTofu)
+      - name: Setup Terraform Linter
+        uses: terraform-linters/setup-tflint@v4
+        
+      - name: Validate IaC Configurations
+        run: |
+          tflint --init
+          tflint -f compact
+
+  # --------------------------------------------------------
+  # Job 2: Build & Test (AI Models & Containers)
+  # --------------------------------------------------------
+  build-and-test:
+    name: Build & Test Artifacts
+    needs: lint-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # Speeds up subsequent runs by caching dependencies
+
+      - name: Install Dependencies & Run Tests
+        run: |
+          pip install -r requirements.txt --user
+          pytest tests/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build & cache the container image (Essential for heavy AI base images)
+      - name: Build Container Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false # Set to true on 'main' branch deploy steps
+          tags: ai-model-iaas:latest
+          cache-from: type=gha # Uses GitHub Actions native cache network
+          cache-to: type=gha,mode=max
+
+  # --------------------------------------------------------
+  # Job 3: Infrastructure Preview / Deployment Plan
+  # --------------------------------------------------------
+  infrastructure-plan:
+    name: IaC Plan & Dry-Run
+    needs: lint-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Log in to Cloud securely without hardcoded secrets using OpenID Connect (OIDC)
+      # - name: Configure AWS Credentials (Example)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::123456789012:role/github-actions-role
+      #     aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init & Plan
+        run: |
+          terraform init
+          terraform plan -out=tfplan
