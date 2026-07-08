@@ -121,6 +121,14 @@ export const postsApi = {
   delete: (id: string) => api.delete(`/posts/${id}`),
   generateCaption: (data: GenerateCaptionPayload) =>
     api.post<{ caption: string; hashtags: string[] }>("/posts/generate-caption", data).then((r) => r.data),
+  approve: (id: string, data?: { approved_by?: string }) =>
+    api.post<PostData>(`/posts/${id}/approve`, data || { approved_by: "admin" }).then((r) => r.data),
+  reject: (id: string) =>
+    api.post<PostData>(`/posts/${id}/reject`).then((r) => r.data),
+  publish: (id: string) =>
+    api.post<PostData>(`/posts/${id}/publish`).then((r) => r.data),
+  schedule: (id: string, data: { publish_date: string }) =>
+    api.post<PostData>(`/posts/${id}/schedule`, data).then((r) => r.data),
 };
 
 export default api;
