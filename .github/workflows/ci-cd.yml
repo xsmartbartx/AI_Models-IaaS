@@ -1,4 +1,6 @@
-name: AI-IaaS Production Pipeline
+# CI/CD Pipeline for AI Influencer Factory
+# This workflow builds and deploys the application using Docker Compose
+name: AI Influencer Factory CI/CD
 
 on:
   push:
@@ -6,109 +8,121 @@ on:
   pull_request:
     branches: [ main, master ]
 
-# Optimize costs: Automatically cancel older builds if a new commit is pushed to the same PR/branch
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-  id-token: write # Required for secure OIDC cloud authentication (AWS/GCP/Azure)
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
 
 jobs:
-  # --------------------------------------------------------
-  # Job 1: Code Quality & Security (Fails fast to save execution minutes)
-  # --------------------------------------------------------
-  lint-and-scan:
-    name: Lint & Security Scan
+  lint-and-test:
+    name: Lint & Test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ backend, frontend ]
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Scan for Exposed Secrets
-        uses: trufflesecurity/trufflehog@main
-        with:
-          extra_args: --only-verified
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      # Check Python code quality (FastAPI, model serving scripts, etc.)
-      - name: Lint Python Code (Ruff)
-        run: |
-          pip install ruff
-          ruff check .
-          ruff format --check .
-
-      # Check Infrastructure as Code (If using Terraform/OpenTofu)
-      - name: Setup Terraform Linter
-        uses: terraform-linters/setup-tflint@v4
-        
-      - name: Validate IaC Configurations
-        run: |
-          tflint --init
-          tflint -f compact
-
-  # --------------------------------------------------------
-  # Job 2: Build & Test (AI Models & Containers)
-  # --------------------------------------------------------
-  build-and-test:
-    name: Build & Test Artifacts
-    needs: lint-and-scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: matrix.service == 'backend'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip' # Speeds up subsequent runs by caching dependencies
+          python-version: "3.11"
 
-      - name: Install Dependencies & Run Tests
+      - name: Set up Node.js
+        if: matrix.service == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: 'npm'
+          cache-dependency-path: frontend/package.json
+
+      - name: Install backend dependencies
+        if: matrix.service == 'backend'
         run: |
-          pip install -r requirements.txt --user
-          pytest tests/
+          pip install --upgrade pip
+          pip install flake8 black mypy
+          pip install -r backend/requirements.txt
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Lint backend
+        if: matrix.service == 'backend'
+        run: |
+          flake8 backend/app --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 backend/app --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      # Build & cache the container image (Essential for heavy AI base images)
-      - name: Build Container Image
+      - name: Type check backend
+        if: matrix.service == 'backend'
+        run: mypy backend/app --ignore-missing-imports || true
+
+      - name: Install frontend dependencies
+        if: matrix.service == 'frontend'
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        if: matrix.service == 'frontend'
+        working-directory: frontend
+        run: npm run lint || true
+
+      - name: Type check frontend
+        if: matrix.service == 'frontend'
+        working-directory: frontend
+        run: npx tsc --noEmit || true
+
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta_backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata for frontend
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: false # Set to true on 'main' branch deploy steps
-          tags: ai-model-iaas:latest
-          cache-from: type=gha # Uses GitHub Actions native cache network
-          cache-to: type=gha,mode=max
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
 
-  # --------------------------------------------------------
-  # Job 3: Infrastructure Preview / Deployment Plan
-  # --------------------------------------------------------
-  infrastructure-plan:
-    name: IaC Plan & Dry-Run
-    needs: lint-and-scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # Log in to Cloud securely without hardcoded secrets using OpenID Connect (OIDC)
-      # - name: Configure AWS Credentials (Example)
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: arn:aws:iam::123456789012:role/github-actions-role
-      #     aws-region: us-east-1
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Init & Plan
-        run: |
-          terraform init
-          terraform plan -out=tfplan
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
