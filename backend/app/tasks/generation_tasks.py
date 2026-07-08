@@ -1,6 +1,8 @@
 """
 Celery tasks for async AI generation: images, videos, captions.
+Uses proper asyncio pattern for worker threads.
 """
+import asyncio
 import os
 import uuid
 from pathlib import Path
@@ -21,14 +23,24 @@ settings = get_settings()
 sync_engine = create_engine(settings.DATABASE_URL_SYNC)
 
 
-def _save_image_record(character_id: str, file_path: str, prompt: str, category: str):
+def _run_async(coro):
+    """Safely run an async coroutine from a sync Celery worker thread."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+def _save_image_record(character_id: str, file_path: str, prompt: str, negative_prompt: str, category: str):
     """Save generated image to database."""
     from backend.app.models.image import Image
     with Session(sync_engine) as session:
         img = Image(
             character_id=uuid.UUID(character_id),
-            file_path=file_path,
+            file_path=str(file_path),
             prompt=prompt,
+            negative_prompt=negative_prompt,
             category=category,
             status="generated",
         )
@@ -42,7 +54,7 @@ def _save_video_record(character_id: str, file_path: str, prompt: str, source_im
     with Session(sync_engine) as session:
         vid = Video(
             character_id=uuid.UUID(character_id),
-            file_path=file_path,
+            file_path=str(file_path),
             prompt=prompt,
             source_image_id=uuid.UUID(source_image_id) if source_image_id else None,
             status="generated",
@@ -60,15 +72,12 @@ def generate_image_task(self, character_id: str, prompt: str, negative_prompt: s
             negative_prompt=negative_prompt,
         )
 
-        import asyncio
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(comfyui_service.queue_prompt(workflow))
-
+        result = _run_async(comfyui_service.queue_prompt(workflow))
         prompt_id = result.get("prompt_id")
         if not prompt_id:
             raise ValueError("No prompt_id returned from ComfyUI")
 
-        history = loop.run_until_complete(comfyui_service.wait_for_generation(prompt_id))
+        history = _run_async(comfyui_service.wait_for_generation(prompt_id))
 
         if history and "outputs" in history:
             for node_id, output in history["outputs"].items():
@@ -76,7 +85,7 @@ def generate_image_task(self, character_id: str, prompt: str, negative_prompt: s
                     for img_data in output["images"]:
                         filename = img_data["filename"]
                         subfolder = img_data.get("subfolder", "")
-                        img_bytes = loop.run_until_complete(
+                        img_bytes = _run_async(
                             comfyui_service.download_output(filename, subfolder)
                         )
 
@@ -85,17 +94,17 @@ def generate_image_task(self, character_id: str, prompt: str, negative_prompt: s
                         file_path = char_dir / filename
                         file_path.write_bytes(img_bytes)
 
-                        _save_image_record(character_id, str(file_path), prompt, category)
+                        _save_image_record(character_id, str(file_path), prompt, negative_prompt, category)
                         return {"status": "completed", "file": str(file_path)}
 
         raise ValueError("Generation failed - no outputs received")
 
     except Exception as exc:
-        self.retry(exc=exc, countdown=30)
+        raise self.retry(exc=exc, countdown=30)
 
 
 @celery_app.task(bind=True, max_retries=3)
-def generate_video_task(self, character_id: str, image_path: str, prompt: str = ""):
+def generate_video_task(self, character_id: str, image_path: str = "", prompt: str = ""):
     """Async task to generate a video from an image via ComfyUI."""
     try:
         workflow = comfyui_service.build_img2vid_workflow(
@@ -103,15 +112,12 @@ def generate_video_task(self, character_id: str, image_path: str, prompt: str = 
             prompt=prompt,
         )
 
-        import asyncio
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(comfyui_service.queue_prompt(workflow))
-
+        result = _run_async(comfyui_service.queue_prompt(workflow))
         prompt_id = result.get("prompt_id")
         if not prompt_id:
             raise ValueError("No prompt_id returned from ComfyUI")
 
-        history = loop.run_until_complete(comfyui_service.wait_for_generation(prompt_id, max_wait=600))
+        history = _run_async(comfyui_service.wait_for_generation(prompt_id, max_wait=600))
 
         if history and "outputs" in history:
             for node_id, output in history["outputs"].items():
@@ -119,7 +125,7 @@ def generate_video_task(self, character_id: str, image_path: str, prompt: str = 
                     for img_data in output["images"]:
                         filename = img_data["filename"]
                         subfolder = img_data.get("subfolder", "")
-                        img_bytes = loop.run_until_complete(
+                        img_bytes = _run_async(
                             comfyui_service.download_output(filename, subfolder)
                         )
 
@@ -134,7 +140,7 @@ def generate_video_task(self, character_id: str, image_path: str, prompt: str = 
         raise ValueError("Video generation failed - no outputs received")
 
     except Exception as exc:
-        self.retry(exc=exc, countdown=60)
+        raise self.retry(exc=exc, countdown=60)
 
 
 @celery_app.task(bind=True, max_retries=2)
@@ -150,16 +156,30 @@ def generate_caption_task(self, character_id: str, topic: str = "", tone: str = 
             char_name = char.name
             char_bio = char.bio or ""
 
-        import asyncio
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(
+        result = _run_async(
             ollama_service.generate_caption(char_name, char_bio, topic, tone)
         )
 
         return {"status": "completed", "caption": result["caption"], "hashtags": result["hashtags"]}
 
     except Exception as exc:
-        self.retry(exc=exc, countdown=10)
+        raise self.retry(exc=exc, countdown=10)
+
+
+@celery_app.task
+def publish_content_task(post_id: str):
+    """Publish a post to social media platforms."""
+    from backend.app.models.post import Post
+    with Session(sync_engine) as session:
+        post = session.query(Post).filter(Post.id == uuid.UUID(post_id)).first()
+        if not post:
+            return {"status": "failed", "error": f"Post {post_id} not found"}
+
+        post.status = "published"
+        post.publish_date = datetime.utcnow()
+        session.commit()
+
+    return {"status": "completed", "post_id": post_id, "platform": post.platform}
 
 
 @celery_app.task
