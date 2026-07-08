@@ -49,3 +49,13 @@ class GenerateCaptionRequest(BaseModel):
 class GenerateCaptionResponse(BaseModel):
     caption: str
     hashtags: list[str]
+
+
+class SchedulePostRequest(BaseModel):
+    """Schema for scheduling a post."""
+    publish_date: datetime
+
+
+class ApprovePostRequest(BaseModel):
+    """Schema for approving a post."""
+    approved_by: Optional[str] = None
