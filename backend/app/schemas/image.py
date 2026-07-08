@@ -12,6 +12,14 @@ class ImageGenerateRequest(BaseModel):
     count: int = 1
 
 
+class ImageBatchGenerateRequest(BaseModel):
+    character_id: UUID
+    prompt: Optional[str] = None
+    negative_prompt: Optional[str] = None
+    category: str = "general"
+    prompts: Optional[list[str]] = None
+
+
 class ImageResponse(BaseModel):
     id: UUID
     character_id: UUID
