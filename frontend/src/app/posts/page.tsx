@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { postsApi, charactersApi, PostData, CharacterData, GenerateCaptionPayload } from "@/lib/api";
-import { Sparkles, Plus, Trash2, Send, Clock, MessageSquare, CheckCircle, XCircle, Pencil } from "lucide-react";
+import { Sparkles, Plus, Trash2, Send, Clock, CheckCircle, XCircle, Pencil } from "lucide-react";
 
 const platforms = ["instagram", "tiktok", "twitter", "facebook"];
 
@@ -21,14 +21,12 @@ export default function PostsPage() {
   const [generating, setGenerating] = useState(false);
   const [genCaption, setGenCaption] = useState("");
 
-  // Form state
   const [selectedChar, setSelectedChar] = useState("");
   const [platform, setPlatform] = useState("instagram");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [mediaIds, setMediaIds] = useState("");
 
-  // Caption generation state
   const [aiTopic, setAiTopic] = useState("");
   const [aiTone, setAiTone] = useState("casual");
   const [aiLanguage, setAiLanguage] = useState("english");
@@ -36,8 +34,8 @@ export default function PostsPage() {
   const load = async () => {
     try {
       const [postsRes, charsRes] = await Promise.all([
-        postsApi.list().catch(() => ({ items: [], total: 0 })),
-        charactersApi.list().catch(() => ({ items: [], total: 0 })),
+        postsApi.list().catch(() => ({ items: [] as PostData[], total: 0 })),
+        charactersApi.list().catch(() => ({ items: [] as CharacterData[], total: 0 })),
       ]);
       setPosts(postsRes.items);
       setCharacters(charsRes.items);
@@ -66,9 +64,9 @@ export default function PostsPage() {
         character_id: selectedChar,
         platform,
         caption,
-        hashtags: hashtags ? hashtags.split(",").map((h) => h.trim()) : [],
-        media_ids: mediaIds ? mediaIds.split(",").map((m) => m.trim()) : [],
-      });
+        hashtags: hashtags ? hashtags.split(",").map((h: string) => h.trim()) : [],
+        media_ids: mediaIds ? mediaIds.split(",").map((m: string) => m.trim()) : [],
+      } as PostData);
       setShowCreate(false);
       resetForm();
       await load();
@@ -86,8 +84,8 @@ export default function PostsPage() {
       await postsApi.update(editing.id, {
         platform,
         caption,
-        hashtags: hashtags ? hashtags.split(",").map((h) => h.trim()) : [],
-        media_ids: mediaIds ? mediaIds.split(",").map((m) => m.trim()) : [],
+        hashtags: hashtags ? hashtags.split(",").map((h: string) => h.trim()) : [],
+        media_ids: mediaIds ? mediaIds.split(",").map((m: string) => m.trim()) : [],
       });
       setEditing(null);
       setShowCreate(false);
@@ -144,7 +142,7 @@ export default function PostsPage() {
 
   const handleApprove = async (id: string) => {
     try {
-      await api.post(`/posts/${id}/approve`, { approved_by: "admin" });
+      await postsApi.approve(id);
       await load();
     } catch (err) {
       console.error("Approve failed", err);
@@ -153,7 +151,7 @@ export default function PostsPage() {
 
   const handleReject = async (id: string) => {
     try {
-      await api.post(`/posts/${id}/reject`);
+      await postsApi.reject(id);
       await load();
     } catch (err) {
       console.error("Reject failed", err);
@@ -162,11 +160,12 @@ export default function PostsPage() {
 
   const handlePublish = async (id: string) => {
     try {
-      await api.post(`/posts/${id}/publish`);
+      await postsApi.publish(id);
       alert("Post queued for publishing");
       await load();
-    } catch (err: any) {
-      alert(err?.response?.data?.detail || "Publish failed");
+    } catch (err) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Publish failed";
+      alert(msg);
     }
   };
 
@@ -218,6 +217,7 @@ export default function PostsPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={selectedChar}
                   onChange={(e) => setSelectedChar(e.target.value)}
+                  aria-label="Select character"
                 >
                   {characters.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -230,6 +230,7 @@ export default function PostsPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={platform}
                   onChange={(e) => setPlatform(e.target.value)}
+                  aria-label="Select platform"
                 >
                   {platforms.map((p) => (
                     <option key={p} value={p}>{p}</option>
@@ -248,7 +249,7 @@ export default function PostsPage() {
                 <Sparkles className="w-3 h-3 mr-1" /> AI Generate
               </Button>
             </div>
-            <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} placeholder="Write your post caption..." />
+            <Textarea value={caption} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCaption(e.target.value)} rows={4} placeholder="Write your post caption..." />
 
             {showCaptionGen && (
               <Card className="border-dashed">
@@ -264,6 +265,7 @@ export default function PostsPage() {
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={aiTone}
                         onChange={(e) => setAiTone(e.target.value)}
+                        aria-label="Select tone"
                       >
                         <option value="casual">Casual</option>
                         <option value="professional">Professional</option>
@@ -278,6 +280,7 @@ export default function PostsPage() {
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={aiLanguage}
                         onChange={(e) => setAiLanguage(e.target.value)}
+                        aria-label="Select language"
                       >
                         <option value="english">English</option>
                         <option value="polish">Polish</option>
@@ -337,9 +340,9 @@ export default function PostsPage() {
                       {statusBadge(post.status)}
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{post.caption}</p>
-                    {post.hashtags && post.hashtags.length > 0 && (
+                    {(post.hashtags || []).length > 0 && (
                       <p className="text-xs text-blue-400">
-                        {post.hashtags.map((h) => h.startsWith("#") ? h : `#${h}`).join(" ")}
+                        {post.hashtags!.map((h) => h.startsWith("#") ? h : `#${h}`).join(" ")}
                       </p>
                     )}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
