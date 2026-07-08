@@ -2,7 +2,8 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.database import get_db
 from backend.app.models.character import Character
@@ -12,15 +13,15 @@ from backend.app.schemas.character import (
     CharacterResponse,
     CharacterListResponse,
 )
-from backend.app.tasks.generation_tasks import generate_caption_task
 
 router = APIRouter(prefix="/characters", tags=["characters"])
 
 
 @router.get("/", response_model=CharacterListResponse)
-def list_characters(db: Session = Depends(get_db)):
+async def list_characters(db: AsyncSession = Depends(get_db)):
     """List all characters."""
-    characters = db.query(Character).order_by(Character.created_at.desc()).all()
+    result = await db.execute(select(Character).order_by(Character.created_at.desc()))
+    characters = result.scalars().all()
     return CharacterListResponse(
         items=[CharacterResponse.model_validate(c) for c in characters],
         total=len(characters),
@@ -28,7 +29,7 @@ def list_characters(db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=CharacterResponse, status_code=status.HTTP_201_CREATED)
-def create_character(data: CharacterCreate, db: Session = Depends(get_db)):
+async def create_character(data: CharacterCreate, db: AsyncSession = Depends(get_db)):
     """Create a new AI character."""
     char = Character(
         name=data.name,
@@ -43,24 +44,26 @@ def create_character(data: CharacterCreate, db: Session = Depends(get_db)):
         hobbies=data.hobbies,
     )
     db.add(char)
-    db.commit()
-    db.refresh(char)
+    await db.flush()
+    await db.refresh(char)
     return CharacterResponse.model_validate(char)
 
 
 @router.get("/{character_id}", response_model=CharacterResponse)
-def get_character(character_id: UUID, db: Session = Depends(get_db)):
+async def get_character(character_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a single character by ID."""
-    char = db.query(Character).filter(Character.id == character_id).first()
+    result = await db.execute(select(Character).filter(Character.id == character_id))
+    char = result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
     return CharacterResponse.model_validate(char)
 
 
 @router.patch("/{character_id}", response_model=CharacterResponse)
-def update_character(character_id: UUID, data: CharacterUpdate, db: Session = Depends(get_db)):
+async def update_character(character_id: UUID, data: CharacterUpdate, db: AsyncSession = Depends(get_db)):
     """Update a character."""
-    char = db.query(Character).filter(Character.id == character_id).first()
+    result = await db.execute(select(Character).filter(Character.id == character_id))
+    char = result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
 
@@ -68,28 +71,30 @@ def update_character(character_id: UUID, data: CharacterUpdate, db: Session = De
     for key, value in update_data.items():
         setattr(char, key, value)
 
-    db.commit()
-    db.refresh(char)
+    await db.flush()
+    await db.refresh(char)
     return CharacterResponse.model_validate(char)
 
 
 @router.delete("/{character_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_character(character_id: UUID, db: Session = Depends(get_db)):
+async def delete_character(character_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a character."""
-    char = db.query(Character).filter(Character.id == character_id).first()
+    result = await db.execute(select(Character).filter(Character.id == character_id))
+    char = result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
-    db.delete(char)
-    db.commit()
+    await db.delete(char)
+    await db.flush()
 
 
 @router.post("/{character_id}/activate", response_model=CharacterResponse)
-def activate_character(character_id: UUID, db: Session = Depends(get_db)):
+async def activate_character(character_id: UUID, db: AsyncSession = Depends(get_db)):
     """Activate a character for content generation."""
-    char = db.query(Character).filter(Character.id == character_id).first()
+    result = await db.execute(select(Character).filter(Character.id == character_id))
+    char = result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
     char.status = "active"
-    db.commit()
-    db.refresh(char)
+    await db.flush()
+    await db.refresh(char)
     return CharacterResponse.model_validate(char)
