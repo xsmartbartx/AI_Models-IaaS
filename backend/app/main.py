@@ -3,11 +3,13 @@ AI Influencer Factory - Main FastAPI Application
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+import os
 
 from backend.app.core.config import get_settings
-from backend.app.core.database import engine, Base
-from backend.app.api import characters, images, videos, posts
+from backend.app.core.database import init_db, close_db
+from backend.app.api import characters, images, videos, posts, prompt_templates, health
 
 settings = get_settings()
 
@@ -15,9 +17,11 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Create all tables on startup
-    Base.metadata.create_all(bind=engine)
+    await init_db()
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, "images"), exist_ok=True)
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, "videos"), exist_ok=True)
     yield
+    await close_db()
 
 
 def create_app() -> FastAPI:
@@ -37,15 +41,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include routers
-    app.include_router(characters.router, prefix="/api/v1")
-    app.include_router(images.router, prefix="/api/v1")
-    app.include_router(videos.router, prefix="/api/v1")
-    app.include_router(posts.router, prefix="/api/v1")
+    # Serve generated media files
+    media_dir = settings.MEDIA_ROOT
+    if os.path.exists(media_dir):
+        app.mount("/media", StaticFiles(directory=media_dir), name="media")
 
-    @app.get("/api/v1/health")
-    async def health_check():
-        return {"status": "ok", "service": "ai-influencer-factory"}
+    # Include routers
+    api_prefix = settings.API_V1_PREFIX
+    app.include_router(health.router, tags=["health"])
+    app.include_router(characters.router, prefix=api_prefix)
+    app.include_router(images.router, prefix=api_prefix)
+    app.include_router(videos.router, prefix=api_prefix)
+    app.include_router(posts.router, prefix=api_prefix)
+    app.include_router(prompt_templates.router, prefix=api_prefix)
 
     return app
 
