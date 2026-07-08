@@ -1,430 +1,227 @@
-# AI_Models-IaaS
+# AI Influencer Factory (Zero-Budget Edition)
 
-![AI Infrastructure](https://img.shields.io/badge/AI-Infrastructure-blue)
-![Machine Learning](https://img.shields.io/badge/Machine%20Learning-Models-green)
-![Cloud Native](https://img.shields.io/badge/Architecture-Cloud--Native-orange)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-teal)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
+[![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-## Overview
+Platform for generating realistic virtual AI influencers and automating content creation for social media — using entirely free and open-source software.
 
-**AI_Models-IaaS** is a scalable Artificial Intelligence Infrastructure-as-a-Service platform designed to simplify deployment, management, and consumption of machine learning models through a unified infrastructure layer.
+## Features
 
-The project provides an abstraction layer between AI models and end users, enabling automated model deployment, API-based inference, resource management, and integration with modern AI workflows.
+- **Character Management** — Define AI influencers with detailed personas (name, age, appearance, style, hobbies)
+- **Image Generation** — Produce consistent, high-quality photos via ComfyUI + FLUX/SDXL
+- **Video Generation** — Create 5–10 second video clips with Wan 2.1, Hunyuan Video, or CogVideoX
+- **Content Library** — Browse and organize generated images and videos by character/category
+- **AI Captioning** — Auto-generate captions and hashtags via Ollama (Qwen/Llama 3)
+- **Post Scheduling** — Plan and queue posts for social media platforms
+- **GPU-Accelerated** — ComfyUI and Ollama run directly on your local GPU (optional profile)
 
-The goal is to create a production-ready foundation for hosting, scaling, and operating AI models similarly to traditional cloud infrastructure services.
-
----
-
-# Key Features
-
-## AI Model Management
-
-* Register and manage multiple AI models
-* Version control for deployed models
-* Model metadata management
-* Model lifecycle automation
-* Support for custom inference pipelines
-
-## AI Inference Infrastructure
-
-* REST API based model access
-* Automated inference execution
-* Scalable model serving architecture
-* Request validation
-* Response standardization
-
-## Infrastructure Layer
-
-* Containerized deployment
-* Cloud-native architecture
-* Resource isolation
-* Automated service provisioning
-* Environment-based configuration
-
-## Developer Experience
-
-* Simple API integration
-* Modular architecture
-* Easy local deployment
-* Production deployment ready
-* Extensible model backend system
-
----
-
-# Architecture
+## Architecture
 
 ```
-                  Users / Applications
-                           |
-                           |
-                    API Gateway
-                           |
-                           |
-              AI Model Management Layer
-                           |
-        -----------------------------------
-        |                 |               |
-   Model Service     Inference API    Scheduler
-        |                 |               |
-        -----------------------------------
-                           |
-                  AI Runtime Environment
-                           |
-        -----------------------------------
-        |                 |               |
-      LLMs          ML Models       Custom Models
-                           |
-                    Infrastructure
-                           |
-              Containers / Cloud / GPU
+Frontend (Next.js + TypeScript + TailwindCSS + Shadcn UI)
+    │
+    ▼
+Backend API (FastAPI + async PostgreSQL)
+    │
+ ┌──┼────────────┐
+ ▼  ▼            ▼
+AI  Media        Scheduler (Celery + Redis)
+    │
+ ┌──┼───────────────┐
+ ▼  ▼               ▼
+PostgreSQL  Local Storage  MinIO (optional)
 ```
 
----
-
-# Technology Stack
-
-## Backend
-
-* Python / Node.js compatible architecture
-* REST API services
-* AI model execution layer
-* Async processing support
-
-## AI Layer
-
-Compatible with:
-
-* Large Language Models
-* Computer Vision Models
-* NLP Models
-* Custom Machine Learning Models
-* Generative AI pipelines
-
-## Infrastructure
-
-* Docker
-* Container-based deployment
-* Cloud-ready architecture
-* GPU acceleration support
-
----
-
-# Project Structure
-
-Example:
-
 ```
-AI_Models-IaaS/
-│
-├── api/
-│   └── API services
-│
-├── models/
-│   └── AI model definitions
-│
-├── inference/
-│   └── inference engines
-│
-├── infrastructure/
-│   └── deployment configuration
-│
-├── configs/
-│   └── application configuration
-│
-├── tests/
-│   └── automated tests
-│
-├── docker-compose.yml
-├── Dockerfile
-├── requirements.txt
-└── README.md
+AI Services:
+  ComfyUI (image generation) ─── port 8188
+  Ollama (LLM chat/captions) ─── port 11434
 ```
 
----
+## Quick Start
 
-# Installation
+### Prerequisites
 
-## Requirements
+- Docker + Docker Compose
+- **GPU mode**: NVIDIA GPU + nvidia-container-toolkit (optional, for ComfyUI + Ollama)
 
-Before starting:
-
-* Python 3.10+
-* Docker
-* Docker Compose
-* Git
-
----
-
-## Clone Repository
+### 1. Clone & Configure
 
 ```bash
 git clone https://github.com/xsmartbartx/AI_Models-IaaS.git
-
+ 
 cd AI_Models-IaaS
+cp .env.example .env   # or edit .env directly
 ```
 
----
-
-# Local Deployment
-
-## Using Docker
-
-Build containers:
+### 2. Start (CPU-only mode, no AI generation)
 
 ```bash
-docker compose build
+docker compose up -d
 ```
 
-Start services:
+Services available at:
+| Service | URL |
+|----------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
+
+### 3. Start with GPU (generation enabled)
 
 ```bash
-docker compose up
+docker compose --profile gpu up -d
 ```
 
-Application will be available at:
+Additional GPU services:
+| Service | URL |
+|----------|-----|
+| ComfyUI | http://localhost:8188 |
+| Ollama | http://localhost:11434 |
 
-```
-http://localhost:8000
-```
-
----
-
-# Configuration
-
-Create environment file:
+### 4. Pull LLM model for captions
 
 ```bash
-cp .env.example .env
+docker compose exec ollama ollama pull qwen2.5:7b
 ```
 
-Example:
+## Hardware Requirements
 
-```env
-APP_ENV=development
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| GPU | RTX 3060 12GB | RTX 4090 |
+| RAM | 32 GB | 64 GB |
+| Storage | 1 TB SSD | 2 TB SSD |
 
-API_PORT=8000
-
-MODEL_PATH=/models
-
-ENABLE_GPU=false
-
-LOG_LEVEL=INFO
-```
-
----
-
-# API Usage
-
-## Health Check
-
-Request:
+## Project Structure
 
 ```
-GET /health
+├── backend/
+│   ├── app/
+│   │   ├── api/          # FastAPI routers (characters, images, videos, posts)
+│   │   ├── core/         # Settings, database engine
+│   │   ├── models/       # SQLAlchemy ORM models
+│   │   ├── schemas/      # Pydantic request/response schemas
+│   │   ├── services/     # ComfyUI + Ollama integration layer
+│   │   └── tasks/        # Celery async tasks (image/video gen, publishing)
+│   ├── alembic/          # DB migrations
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── app/          # Next.js pages (dashboard, characters, images, videos)
+│   │   ├── components/   # UI components (shadcn) + sidebar
+│   │   └── lib/          # API client + utilities
+│   ├── Dockerfile
+│   └── package.json
+├── comfyui/              # ComfyUI model/custom_nodes mounts
+├── scripts/              # Utility scripts
+├── docker-compose.yml
+├── .env
+└── README.md
 ```
 
-Response:
+## API Endpoints
 
-```json
-{
-  "status": "healthy"
-}
-```
+### Characters
+- `GET    /api/v1/characters/` — List all characters
+- `POST   /api/v1/characters/` — Create character
+- `GET    /api/v1/characters/{id}` — Get character
+- `PATCH  /api/v1/characters/{id}` — Update character
+- `DELETE /api/v1/characters/{id}` — Delete character
+- `POST   /api/v1/characters/{id}/activate` — Activate character for generation
 
----
+### Images
+- `GET    /api/v1/images/` — List images
+- `POST   /api/v1/images/generate` — Queue image generation
+- `POST   /api/v1/images/generate/batch` — Batch generate
+- `DELETE /api/v1/images/{id}` — Delete image
 
-## Model Inference Example
+### Videos
+- `GET    /api/v1/videos/` — List videos
+- `POST   /api/v1/videos/generate` — Queue video generation
+- `DELETE /api/v1/videos/{id}` — Delete video
 
-Request:
+### Posts
+- `GET    /api/v1/posts/` — List posts
+- `POST   /api/v1/posts/` — Create post
+- `POST   /api/v1/posts/generate-caption` — AI caption generation
+- `POST   /api/v1/posts/{id}/approve` — Approve for publishing
+- `POST   /api/v1/posts/{id}/publish` — Publish now
+- `POST   /api/v1/posts/{id}/schedule` — Schedule for later
 
-```
-POST /api/v1/inference
-```
+## Technology Stack
 
-Payload:
+### Frontend
+- Next.js 14 (App Router)
+- TypeScript
+- TailwindCSS
+- Shadcn UI (Button, Input, Card, Textarea, Label)
 
-```json
-{
-  "model": "example-model",
-  "input": "Generate AI response"
-}
-```
+### Backend
+- FastAPI (async)
+- SQLAlchemy 2.0 (async PostgreSQL)
+- Celery + Redis (task queue)
+- Alembic (migrations)
 
-Response:
+### AI Layer
+- ComfyUI (FLUX Dev / SDXL / Juggernaut XL)
+- Ollama (Qwen 2.5 / Llama 3)
+- Wan 2.1 / Hunyuan Video / CogVideoX (video)
 
-```json
-{
-  "model": "example-model",
-  "output": "Generated result"
-}
-```
+## Development
 
----
-
-# Model Lifecycle
-
-```
-Create Model
-      |
-      |
-Register Model
-      |
-      |
-Deploy Model
-      |
-      |
-Serve Inference Requests
-      |
-      |
-Monitor Performance
-      |
-      |
-Update / Remove Model
-```
-
----
-
-# Security
-
-Implemented security principles:
-
-* Environment-based secrets management
-* API authentication layer
-* Input validation
-* Container isolation
-* Logging and monitoring
-* Secure configuration handling
-
-Recommended production additions:
-
-* OAuth2 / OpenID Connect
-* API Gateway protection
-* Rate limiting
-* Secret vault integration
-* Model access policies
-
----
-
-# Scalability
-
-The architecture supports:
-
-* Horizontal scaling
-* Multiple inference workers
-* GPU-based acceleration
-* Distributed model serving
-* Kubernetes deployment
-* Cloud infrastructure integration
-
-Possible deployment targets:
-
-* AWS
-* Azure
-* Google Cloud
-* Kubernetes clusters
-* Private AI infrastructure
-
----
-
-# Use Cases
-
-## Enterprise AI Platform
-
-Deploy internal AI models for:
-
-* Automation
-* Data analysis
-* Knowledge management
-* Business intelligence
-
-## AI SaaS Products
-
-Build applications using:
-
-* Custom AI APIs
-* Generative AI services
-* AI assistants
-* Intelligent automation
-
-## Research Environment
-
-Support:
-
-* Experimental models
-* Benchmarking
-* Model comparison
-* AI development workflows
-
----
-
-# Development
-
-Install dependencies:
+### Backend
 
 ```bash
+cd backend
 pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
-Run tests:
+### Frontend
 
 ```bash
-pytest
+cd frontend
+npm install
+npm run dev
 ```
 
-Run development server:
+### Database Migrations
 
 ```bash
-python main.py
+cd backend
+alembic revision --autogenerate -m "init"
+alembic upgrade head
 ```
 
----
+## Roadmap
 
-# Roadmap
+### Phase 1 ✅
+- Character creation & management
+- Image generation (ComfyUI + FLUX/SDXL)
+- Single character workflow
+- Basic content library
 
-## Phase 1
+### Phase 2 (in progress)
+- Video generation (image-to-video)
+- Multi-character support
+- AI captioning with Ollama
+- Post scheduling
 
-* [x] Basic AI model serving
-* [x] API communication layer
-* [x] Container deployment
+### Phase 3
+- Social media platform integrations
+- Analytics dashboard
+- Automated publishing engine
 
-## Phase 2
+### Phase 4
+- Multi-tenant SaaS
+- Marketplace for AI characters
+- Advanced analytics & optimization
 
-* [ ] Model marketplace
-* [ ] Authentication system
-* [ ] Monitoring dashboard
-* [ ] GPU scheduling
+## License
 
-## Phase 3
-
-* [ ] Multi-cloud deployment
-* [ ] Kubernetes operator
-* [ ] Automated model optimization
-* [ ] AI infrastructure marketplace
-
----
-
-# Contributing
-
-Contributions are welcome.
-
-Steps:
-
-```bash
-git fork
-
-git checkout -b feature/new-feature
-
-git commit -m "Add new feature"
-
-git push origin feature/new-feature
-```
-
-Create a Pull Request.
-
----
-
-# Vision
-
-AI_Models-IaaS aims to become a universal infrastructure layer for deploying and operating artificial intelligence models at scale.
-
-The project focuses on making AI deployment as simple and accessible as traditional cloud infrastructure.
+MIT — see [LICENSE](LICENSE) file.
