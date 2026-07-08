@@ -17,6 +17,8 @@ class Post(Base):
     media_ids: Mapped[str] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="draft")
     publish_date: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    approved_by: Mapped[str] = mapped_column(String(255), nullable=True)
+    approved_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     character = relationship("Character", back_populates="posts")
