@@ -7,9 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import os
 
-from backend.app.core.config import get_settings
-from backend.app.core.database import init_db, close_db
-from backend.app.api import characters, images, videos, posts, prompt_templates, health
+from app.core.config import get_settings
+from app.core.database import init_db, close_db
+from app.api import characters, images, videos, posts, prompt_templates, health
 
 settings = get_settings()
 
