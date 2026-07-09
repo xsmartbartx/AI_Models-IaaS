@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.database import get_db
-from backend.app.models.prompt_template import PromptTemplate
-from backend.app.schemas.prompt_template import (
+from app.core.database import get_db
+from app.models.prompt_template import PromptTemplate
+from app.schemas.prompt_template import (
     PromptTemplateCreate,
     PromptTemplateUpdate,
     PromptTemplateResponse,
