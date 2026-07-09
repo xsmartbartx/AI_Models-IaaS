@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
-from backend.app.core.database import Base
+from app.core.database import Base
 
 
 class PromptTemplate(Base):
