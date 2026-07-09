@@ -12,10 +12,10 @@ from celery import shared_task
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from backend.app.tasks.celery_app import celery_app
-from backend.app.core.config import get_settings
-from backend.app.services.comfyui_service import comfyui_service
-from backend.app.services.ollama_service import ollama_service
+from app.tasks.celery_app import celery_app
+from app.core.config import get_settings
+from app.services.comfyui_service import comfyui_service
+from app.services.ollama_service import ollama_service
 
 settings = get_settings()
 
@@ -34,7 +34,7 @@ def _run_async(coro):
 
 def _save_image_record(character_id: str, file_path: str, prompt: str, negative_prompt: str, category: str):
     """Save generated image to database."""
-    from backend.app.models.image import Image
+    from app.models.image import Image
     with Session(sync_engine) as session:
         img = Image(
             character_id=uuid.UUID(character_id),
@@ -50,7 +50,7 @@ def _save_image_record(character_id: str, file_path: str, prompt: str, negative_
 
 def _save_video_record(character_id: str, file_path: str, prompt: str, source_image_id: str = None):
     """Save generated video to database."""
-    from backend.app.models.video import Video
+    from app.models.video import Video
     with Session(sync_engine) as session:
         vid = Video(
             character_id=uuid.UUID(character_id),
@@ -147,7 +147,7 @@ def generate_video_task(self, character_id: str, image_path: str = "", prompt: s
 def generate_caption_task(self, character_id: str, topic: str = "", tone: str = "casual"):
     """Async task to generate a social media caption via Ollama."""
     try:
-        from backend.app.models.character import Character
+        from app.models.character import Character
         with Session(sync_engine) as session:
             char = session.query(Character).filter(Character.id == uuid.UUID(character_id)).first()
             if not char:
@@ -169,7 +169,7 @@ def generate_caption_task(self, character_id: str, topic: str = "", tone: str = 
 @celery_app.task
 def publish_content_task(post_id: str):
     """Publish a post to social media platforms."""
-    from backend.app.models.post import Post
+    from app.models.post import Post
     with Session(sync_engine) as session:
         post = session.query(Post).filter(Post.id == uuid.UUID(post_id)).first()
         if not post:
@@ -185,7 +185,7 @@ def publish_content_task(post_id: str):
 @celery_app.task
 def generate_daily_content():
     """Scheduled task to generate daily content for all active characters."""
-    from backend.app.models.character import Character
+    from app.models.character import Character
     with Session(sync_engine) as session:
         characters = session.query(Character).filter(Character.status == "active").all()
 

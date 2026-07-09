@@ -5,16 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.database import get_db
-from backend.app.models.image import Image
-from backend.app.models.character import Character
-from backend.app.schemas.image import (
+from app.core.database import get_db
+from app.models.image import Image
+from app.models.character import Character
+from app.schemas.image import (
     ImageGenerateRequest,
     ImageBatchGenerateRequest,
     ImageResponse,
     ImageListResponse,
 )
-from backend.app.tasks.generation_tasks import generate_image_task
+from app.tasks.generation_tasks import generate_image_task
 
 router = APIRouter(prefix="/images", tags=["images"])
 
