@@ -5,16 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.database import get_db
-from backend.app.models.video import Video
-from backend.app.models.character import Character
-from backend.app.models.image import Image
-from backend.app.schemas.video import (
+from app.core.database import get_db
+from app.models.video import Video
+from app.models.character import Character
+from app.models.image import Image
+from app.schemas.video import (
     VideoGenerateRequest,
     VideoResponse,
     VideoListResponse,
 )
-from backend.app.tasks.generation_tasks import generate_video_task
+from app.tasks.generation_tasks import generate_video_task
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
