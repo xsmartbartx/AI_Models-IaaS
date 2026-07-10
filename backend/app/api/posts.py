@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.database import get_db
-from backend.app.models.post import Post
-from backend.app.models.character import Character
-from backend.app.schemas.post import (
+from app.core.database import get_db
+from app.models.post import Post
+from app.models.character import Character
+from app.schemas.post import (
     PostCreate,
     PostUpdate,
     PostResponse,
@@ -19,8 +19,8 @@ from backend.app.schemas.post import (
     SchedulePostRequest,
     ApprovePostRequest,
 )
-from backend.app.services.ollama_service import ollama_service
-from backend.app.tasks.generation_tasks import publish_content_task
+from app.services.ollama_service import ollama_service
+from app.tasks.generation_tasks import publish_content_task
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
