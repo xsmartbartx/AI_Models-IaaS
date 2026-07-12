@@ -12,9 +12,6 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
 
-# Only copy public directory if it exists
+# Create public directory and copy if it exists in builder
 RUN mkdir -p ./public
-COPY --from=builder /app/public ./public || true
-
-EXPOSE 3000
-CMD ["npm", "start"]
+COPY --chown=node:node --from=builder /app/public ./public || true
