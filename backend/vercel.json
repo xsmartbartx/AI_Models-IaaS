@@ -4,7 +4,7 @@
             "root": "frontend",
             "framework": "nextjs"
         },
-        "backend": {
+        "rewrites": [
             "root": "backend"
         }
     },
@@ -19,9 +19,19 @@
         {
             "source": "/(.*)",
             "destination": {
-                "type": "service",
-                "service": "frontend"
+        ],
+        "experimentalServices": {
+            "web": {
+                "entrypoint": "apps/web",
+                "routePrefix": "/"
+            },
+            "api": {
+                "entrypoint": "backend/main.py",
+                "routePrefix": "/server"
             }
         }
-    ]
+        "routePrefix": "/server"
+            }
+        }
+    }
 }
