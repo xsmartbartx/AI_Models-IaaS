@@ -1,37 +1,26 @@
 {
-    "services": {
-        "frontend": {
-            "root": "frontend",
-            "framework": "nextjs"
-        },
-        "rewrites": [
-            "root": "backend"
-        }
+  "experimentalServices": {
+    "frontend": {
+      "root": "frontend"
     },
-    "rewrites": [
-        {
-            "source": "/api/backend(/.*)?",
-            "destination": {
-                "type": "service",
-                "service": "backend"
-            }
-        },
-        {
-            "source": "/(.*)",
-            "destination": {
-        ],
-        "experimentalServices": {
-            "web": {
-                "entrypoint": "apps/web",
-                "routePrefix": "/"
-            },
-            "api": {
-                "entrypoint": "backend/main.py",
-                "routePrefix": "/server"
-            }
-        }
-        "routePrefix": "/server"
-            }
-        }
+    "backend": {
+      "root": "backend"
     }
+  },
+  "rewrites": [
+    {
+      "source": "/api/backend(/.*)?",
+      "destination": {
+        "type": "service",
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "frontend"
+      }
+    }
+  ]
 }
