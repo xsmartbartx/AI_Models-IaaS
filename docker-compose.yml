@@ -1,128 +1,50 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
+  # --- 1. FastAPI Web Service ---
+  api:
+    build: .
+    # Adjust "app.main:app" to point to your FastAPI instance
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - db
     environment:
-      POSTGRES_USER: aifactory
-      POSTGRES_PASSWORD: aifactory_secret
-      POSTGRES_DB: aifactory
+      # These use the internal Docker network hostnames ("db" and "redis")
+      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/appdb
+      - CELERY_BROKER_URL=redis://redis:6379/0
+
+  # --- 2. Celery Worker Service ---
+  worker:
+    build: .
+    # Adjust "app.worker:celery" to point to your Celery app instance
+    command: celery -A app.worker:celery worker --loglevel=info
+    depends_on:
+      - redis
+      - db
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/appdb
+      - CELERY_BROKER_URL=redis://redis:6379/0
+
+  # --- 3. Managed Redis (for Celery) ---
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # --- 4. Managed PostgreSQL ---
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=appdb
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aifactory"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  backend:
-    build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - media_data:/app/media
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  celery_worker:
-    build: ./backend
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
-    volumes:
-      - ./backend:/app
-      - media_data:/app/media
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  celery_beat:
-    build: ./backend
-    command: celery -A app.tasks.celery_app beat --loglevel=info
-    volumes:
-      - ./backend:/app
-      - media_data:/app/media
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  frontend:
-    build: ./frontend
-    command: npm run dev
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    env_file:
-      - .env
-    depends_on:
-      - backend
-
-  comfyui:
-    image: ghcr.io/ai-dock/comfyui:latest
-    ports:
-      - "8188:8188"
-    volumes:
-      - comfyui_data:/app
-      - ./comfyui/models:/app/models:ro
-      - ./comfyui/custom_nodes:/app/custom_nodes:ro
-      - media_data:/app/output
-    environment:
-      - COMFYUI_EXTRA_ARGS=--listen 0.0.0.0 --enable-cors-header
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    profiles:
-      - gpu
-
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    profiles:
-      - gpu
 
 volumes:
   postgres_data:
-  media_data:
-  comfyui_data:
-  ollama_data:
