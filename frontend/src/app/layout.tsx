@@ -6,19 +6,10 @@ import { Sidebar } from "@/components/sidebar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Influencer Factory",
-  description: "Create and manage AI-generated influencer content",
+  title: "OneNexora AI | Content Workspace",
+  description: "AI influencer content workspace.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body className={inter.className}>
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 lg:ml-64 p-4 md:p-8 pt-16 lg:pt-8">{children}</main>
-        </div>
-      </body>
-    </html>
-  );
+  return <html lang="en"><body className={inter.className}><div className="min-h-screen bg-background text-foreground"><Sidebar /><main className="min-h-screen lg:ml-64"><div className="mx-auto w-full max-w-[1600px] p-4 pt-16 md:p-8 lg:p-10 lg:pt-10">{children}</div></main></div></body></html>;
 }
